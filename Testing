@@ -7,6 +7,12 @@ from selenium.webdriver.support import expected_conditions as EC
 import time
 from datetime import datetime, timedelta
 from selenium.common.exceptions import StaleElementReferenceException
+import pandas as pd
+import re
+
+date = datetime(2024, 10, 26)
+count = 0
+
 
 # Set the path to the Chromedriver
 DRIVER_PATH = 'C:\\Users\\adamo\\Downloads\\chromedriver-win64\\chromedriver-win64\\chromedriver.exe'
@@ -16,10 +22,11 @@ driver.get('https://eatsmart.housing.illinois.edu/NetNutrition/46')
 
 # Variables
 macrosFull = []
+data = []
 
 def refresh():
     global elements, rows, currBlocks, links
-    elements = WebDriverWait(driver, 1).until(
+    elements = WebDriverWait(driver, 2).until(
         EC.visibility_of_all_elements_located((By.ID, 'menuPanel'))
     )
     for element in elements:
@@ -37,7 +44,7 @@ driver.execute_script("arguments[0].scrollIntoView();", element)
 driver.execute_script("arguments[0].click();", element)
 
 element = WebDriverWait(driver, 1).until(
-    EC.visibility_of_element_located((By.LINK_TEXT, 'Fusion 48'))
+    EC.visibility_of_element_located((By.LINK_TEXT, 'Grillworks'))
 )
 driver.execute_script("arguments[0].scrollIntoView();", element)
 driver.execute_script("arguments[0].click();", element)
@@ -61,7 +68,7 @@ for i in range(27):
         except:
             pass
 
-        items = WebDriverWait(driver, 1).until(
+        items = WebDriverWait(driver, 5).until(
             EC.visibility_of_all_elements_located((By.CLASS_NAME, 'cbo_nn_itemHover'))
         )
 
@@ -79,22 +86,43 @@ for i in range(27):
                 headers = table.find_elements(By.CLASS_NAME, 'cbo_nn_LabelBorderedSubHeader')
                 headers.append(driver.find_element(By.CLASS_NAME, 'cbo_nn_LabelHeader'))
                 headers.append(driver.find_element(By.CLASS_NAME, 'cbo_nn_LabelBottomBorderLabel'))
-
-                for header in headers:
-                    try:
-                        print(header.text)
-                    except StaleElementReferenceException:
+                headers.append(date)
+                if(count == 2):
+                     headers.append('dinner')
+                elif(count == 1):
+                     headers.append('lunch')
+                else:
+                    headers.append('breakfast')
+                try:
+                        nutrients = {
+                            'calories': re.findall(r'\d+', headers[0].text)[0],
+                            'Total Fat': re.findall(r'\d+', headers[1].text)[0],
+                            'Saturated Fat': re.findall(r'\d+', headers[2].text)[0], 
+                            'Trans Fat': re.findall(r'\d+', headers[3].text.replace("NA", "0"))[0],
+                            'Polyunsaturated Fat': re.findall(r'\d+', headers[4].text.replace("NA", "0"))[0],
+                            'Monounsaturated Fat': re.findall(r'\d+', headers[5].text.replace("NA", "0"))[0],
+                            'Cholestrol': re.findall(r'\d+', headers[6].text)[0],
+                            'Sodium': re.findall(r'\d+', headers[7].text)[0],
+                            'Potassium': re.findall(r'\d+', headers[8].text.replace("NA", "0"))[0],
+                            'Total Carbs': re.findall(r'\d+', headers[9].text)[0],
+                            'Fiber': re.findall(r'\d+', headers[10].text.replace("NA", "0"))[0],
+                            'Sugar': re.findall(r'\d+', headers[11].text.replace("NA", "0"))[0],
+                            'Protein': re.findall(r'\d+', headers[12].text)[0],
+                            'Name': headers[13].text,
+                            'Serving Size': headers[14].text,
+                            'Date': headers[15],
+                            'Meal': headers[16]
+                        }
+                        print(nutrients)
+                        data.append(nutrients)
+                except:
                         # Retry fetching text if stale
-                        print("Stale element, retrying fetch...")
-                        header = WebDriverWait(driver, 1).until(
-                            EC.presence_of_element_located((By.CLASS_NAME, header.get_attribute("class")))
-                        )
-                        print(header.text)
+                        pass
 
             except StaleElementReferenceException:
                 print("Table elements became stale. Skipping this item.")
 
-            close = WebDriverWait(driver, 1).until(
+            close = WebDriverWait(driver, 9).until(
                 EC.visibility_of_element_located((By.ID, 'btn_nn_nutrition_close'))
             )
             driver.execute_script("arguments[0].scrollIntoView();", close)
@@ -106,5 +134,14 @@ for i in range(27):
         )
         driver.execute_script("arguments[0].scrollIntoView();", back)
         driver.execute_script("arguments[0].click();", back)
+        count += 1
+    date += timedelta(days = 1)
+    count = 0
+
+
+df= pd.DataFrame(data)
+print(df)
+df.to_csv('C:\\Users\\adamo\\Downloads\\grillworks_final.csv', index = False)
+
 
 driver.quit()
